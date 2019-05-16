@@ -558,12 +558,19 @@ func (stub *ChaincodeStub) GetStateByRange(startKey, endKey string) (StateQueryI
 }
 
 // GetHistoryForKey documentation can be found in interfaces.go
-func (stub *ChaincodeStub) GetHistoryForKey(key string) (HistoryQueryIteratorInterface, error) {
+func (stub *ChaincodeStub) GetHistoryForKey(key string) ([]HistoryQueryIteratorInterface, error) {
+	fmt.Println("zhinenghueyuelide")
 	response, err := stub.handler.handleGetHistoryForKey(key, stub.ChannelId, stub.TxID)
 	if err != nil {
 		return nil, err
 	}
-	return &HistoryQueryIterator{CommonIterator: &CommonIterator{stub.handler, stub.ChannelId, stub.TxID, response, 0}}, nil
+	var historyQueryIterators []HistoryQueryIteratorInterface
+	for i:=0;i<len(*response);i++{
+		historyQueryIterators= append(historyQueryIterators, &HistoryQueryIterator{CommonIterator: &CommonIterator{stub.handler, stub.ChannelId, stub.TxID, &(*response)[i], 0}})
+
+	}
+	//return &HistoryQueryIterator{CommonIterator: &CommonIterator{stub.handler, stub.ChannelId, stub.TxID, response, 0}}, nil
+	return historyQueryIterators,nil
 }
 
 //CreateCompositeKey documentation can be found in interfaces.go
@@ -652,9 +659,12 @@ func (iter *StateQueryIterator) Next() (*queryresult.KV, error) {
 }
 
 func (iter *HistoryQueryIterator) Next() (*queryresult.KeyModification, error) {
+	fmt.Println("next1")
 	if result, err := iter.nextResult(HISTORY_QUERY_RESULT); err == nil {
+		fmt.Println("next2")
 		return result.(*queryresult.KeyModification), err
 	} else {
+		fmt.Println("next3")
 		return nil, err
 	}
 }
@@ -693,10 +703,12 @@ func (iter *CommonIterator) getResultFromBytes(queryResultBytes *pb.QueryResultB
 
 func (iter *CommonIterator) fetchNextQueryResult() error {
 	if response, err := iter.handler.handleQueryStateNext(iter.response.Id, iter.channelId, iter.txid); err == nil {
+		fmt.Println("xxxxxxxxx")
 		iter.currentLoc = 0
 		iter.response = response
 		return nil
 	} else {
+		fmt.Println("xxxxxxxx000000000x")
 		return err
 	}
 }
@@ -705,29 +717,37 @@ func (iter *CommonIterator) fetchNextQueryResult() error {
 // from the state or history query iterator. Note that commonledger.QueryResult is an
 // empty golang interface that can hold values of any type.
 func (iter *CommonIterator) nextResult(rType resultType) (commonledger.QueryResult, error) {
+	fmt.Println(0)
 	if iter.currentLoc < len(iter.response.Results) {
+		fmt.Println("01")
 		// On valid access of an element from cached results
 		queryResult, err := iter.getResultFromBytes(iter.response.Results[iter.currentLoc], rType)
 		if err != nil {
+			fmt.Println("1")
 			chaincodeLogger.Errorf("Failed to decode query results: %+v", err)
 			return nil, err
 		}
 		iter.currentLoc++
 
+		fmt.Println("02")
 		if iter.currentLoc == len(iter.response.Results) && iter.response.HasMore {
+			fmt.Println("03")
 			// On access of last item, pre-fetch to update HasMore flag
 			if err = iter.fetchNextQueryResult(); err != nil {
+				fmt.Println("2")
 				chaincodeLogger.Errorf("Failed to fetch next results: %+v", err)
 				return nil, err
 			}
 		}
-
+		fmt.Println("shenmeyuanyin")
 		return queryResult, err
 	} else if !iter.response.HasMore {
+		fmt.Println("3")
 		// On call to Next() without check of HasMore
 		return nil, errors.New("no such key")
 	}
 
+	fmt.Println(4)
 	// should not fall through here
 	// case: no cached results but HasMore is true.
 	return nil, errors.New("invalid iterator state")

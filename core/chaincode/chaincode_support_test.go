@@ -1117,7 +1117,7 @@ func TestGetTxContextFromHandler(t *testing.T) {
 
 	// test for another msgType (PUT_STATE) with the same payload ==> must return a non empty txContext
 	txContext, ccMsg = h.isValidTxSim(chnl, txid,
-		"[%s]No ledger context for %s. Sending %s", 12345, pb.ChaincodeMessage_PUT_STATE, pb.ChaincodeMessage_ERROR)
+		"[%s]No ledger context for %s. Sending %s", "12345", pb.ChaincodeMessage_PUT_STATE, pb.ChaincodeMessage_ERROR)
 	if txContext == nil || ccMsg != nil || txContext != txCtxGenerated {
 		t.Fatalf("expected successful txContext for non empty payload and PUT_STATE msgType. triggerNextStateMsg: %s.", ccMsg)
 	}

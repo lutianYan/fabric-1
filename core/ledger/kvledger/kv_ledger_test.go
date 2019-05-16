@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package kvledger
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"testing"
@@ -37,8 +38,15 @@ func TestMain(m *testing.M) {
 	viper.Set("ledger.history.enableHistoryDatabase", true)
 	os.Exit(m.Run())
 }
-
+type Authors struct {
+	Authors    []string `json:"authors"`
+	Conference string   `josn:"conference"`
+}
 func TestKVLedgerBlockStorage(t *testing.T) {
+	kkey:=Authors{[]string{"ytl1","ytl2"},"acto"}
+	kkey1:=Authors{[]string{"ytl1","ytl2","ytl3"},"acto"}
+	realkey,_:=json.Marshal(kkey)
+	realkey1,_:=json.Marshal(kkey1)
 	env := newTestEnv(t)
 	defer env.cleanup()
 	provider, _ := NewProvider()
@@ -57,6 +65,8 @@ func TestKVLedgerBlockStorage(t *testing.T) {
 	simulator.SetState("ns1", "key1", []byte("value1"))
 	simulator.SetState("ns1", "key2", []byte("value2"))
 	simulator.SetState("ns1", "key3", []byte("value3"))
+	simulator.SetState("ns1", string(realkey), []byte("value4"))
+	//simulator.SetState("ns1", string(realkey1), []byte("value5"))
 	simulator.Done()
 	simRes, _ := simulator.GetTxSimulationResults()
 	pubSimBytes, _ := simRes.GetPubSimulationBytes()
@@ -73,6 +83,8 @@ func TestKVLedgerBlockStorage(t *testing.T) {
 	simulator.SetState("ns1", "key1", []byte("value4"))
 	simulator.SetState("ns1", "key2", []byte("value5"))
 	simulator.SetState("ns1", "key3", []byte("value6"))
+	//simulator.SetState("ns1", string(realkey), []byte("value7"))
+	simulator.SetState("ns1", string(realkey1), []byte("value8"))
 	simulator.Done()
 	simRes, _ = simulator.GetTxSimulationResults()
 	pubSimBytes, _ = simRes.GetPubSimulationBytes()
@@ -118,10 +130,13 @@ func TestKVLedgerBlockStorage(t *testing.T) {
 	// get the transaction validation code for this transaction id
 	validCode, _ := ledger.GetTxValidationCodeByTxID(txID2)
 	testutil.AssertEquals(t, validCode, peer.TxValidationCode_VALID)
+
 }
 
 func TestKVLedgerBlockStorageWithPvtdata(t *testing.T) {
 	t.Skip()
+	kkey:=Authors{[]string{"ytl1","ytl2"},"acto"}
+	realkey,_:=json.Marshal(kkey)
 	env := newTestEnv(t)
 	defer env.cleanup()
 	provider, _ := NewProvider()
@@ -140,6 +155,7 @@ func TestKVLedgerBlockStorageWithPvtdata(t *testing.T) {
 	simulator.SetState("ns1", "key1", []byte("value1"))
 	simulator.SetPrivateData("ns1", "coll1", "key2", []byte("value2"))
 	simulator.SetPrivateData("ns1", "coll2", "key2", []byte("value3"))
+	simulator.SetState("ns1", string(realkey), []byte("value2"))
 	simulator.Done()
 	simRes, _ := simulator.GetTxSimulationResults()
 	pubSimBytes, _ := simRes.GetPubSimulationBytes()
@@ -156,6 +172,7 @@ func TestKVLedgerBlockStorageWithPvtdata(t *testing.T) {
 	simulator.SetState("ns1", "key1", []byte("value4"))
 	simulator.SetState("ns1", "key2", []byte("value5"))
 	simulator.SetState("ns1", "key3", []byte("value6"))
+	simulator.SetState("ns1", string(realkey), []byte("value7"))
 	simulator.Done()
 	simRes, _ = simulator.GetTxSimulationResults()
 	pubSimBytes, _ = simRes.GetPubSimulationBytes()
@@ -332,7 +349,8 @@ func TestKVLedgerDBRecovery(t *testing.T) {
 
 	assert.NoError(t, ledger.(*kvLedger).txtmgmt.ValidateAndPrepare(blockAndPvtdata4, true))
 	assert.NoError(t, ledger.(*kvLedger).blockStore.CommitWithPvtData(blockAndPvtdata4))
-	assert.NoError(t, ledger.(*kvLedger).historyDB.Commit(blockAndPvtdata4.Block))
+	_,_,err:=ledger.(*kvLedger).historyDB.Commit(blockAndPvtdata4.Block)
+	assert.NoError(t, err)
 
 	checkBCSummaryForTest(t, ledger,
 		&bcSummary{

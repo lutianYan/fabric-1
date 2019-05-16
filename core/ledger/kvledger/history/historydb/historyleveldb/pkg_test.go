@@ -27,6 +27,8 @@ import (
 	"github.com/hyperledger/fabric/common/ledger/blkstorage/fsblkstorage"
 	"github.com/hyperledger/fabric/common/ledger/testutil"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/history/historydb"
+	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/keydb"
+	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/keydb/keyleveldb"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/privacyenabledstate"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/txmgr"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/txmgr/lockbasedtxmgr"
@@ -47,6 +49,8 @@ type levelDBLockBasedHistoryEnv struct {
 
 	testHistoryDBProvider historydb.HistoryDBProvider
 	testHistoryDB         historydb.HistoryDB
+	testKeyDBProvider     keydb.KeyDBProvider
+	testKeyDB             keydb.KeyDB
 }
 
 func newTestHistoryEnv(t *testing.T) *levelDBLockBasedHistoryEnv {
@@ -65,11 +69,14 @@ func newTestHistoryEnv(t *testing.T) *levelDBLockBasedHistoryEnv {
 
 	testHistoryDBProvider := NewHistoryDBProvider()
 	testHistoryDB, err := testHistoryDBProvider.GetDBHandle("TestHistoryDB")
+
+	testkeyDBProvider := keyleveldb.NewKeyDBProvider()
+	testkeyDB, err := testkeyDBProvider.GetDBHandle("TesKeyDB")
 	testutil.AssertNoError(t, err, "")
 
 	return &levelDBLockBasedHistoryEnv{t,
 		blockStorageTestEnv, testDBEnv, testBookkeepingEnv,
-		txMgr, testHistoryDBProvider, testHistoryDB}
+		txMgr, testHistoryDBProvider, testHistoryDB,testkeyDBProvider,testkeyDB}
 }
 
 func (env *levelDBLockBasedHistoryEnv) cleanup() {
@@ -79,6 +86,7 @@ func (env *levelDBLockBasedHistoryEnv) cleanup() {
 	env.testBookkeepingEnv.Cleanup()
 	// clean up history
 	env.testHistoryDBProvider.Close()
+	env.testKeyDBProvider.Close()
 	removeDBPath(env.t)
 }
 

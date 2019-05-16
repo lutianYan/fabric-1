@@ -1,7 +1,17 @@
 /*
-Copyright IBM Corp. All Rights Reserved.
+Copyright IBM Corp. 2016 All Rights Reserved.
 
-SPDX-License-Identifier: Apache-2.0
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+		 http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 */
 
 package historyleveldb
@@ -12,7 +22,6 @@ import (
 	"testing"
 
 	configtxtest "github.com/hyperledger/fabric/common/configtx/test"
-	"github.com/hyperledger/fabric/common/flogging"
 	"github.com/hyperledger/fabric/common/ledger/testutil"
 	util2 "github.com/hyperledger/fabric/common/util"
 	"github.com/hyperledger/fabric/core/ledger"
@@ -25,8 +34,6 @@ import (
 
 func TestMain(m *testing.M) {
 	viper.Set("peer.fileSystemPath", "/tmp/fabric/ledgertests/kvledger/history/historydb/historyleveldb")
-	flogging.SetModuleLevel("leveldbhelper", "debug")
-	flogging.SetModuleLevel("historyleveldb", "debug")
 	os.Exit(m.Run())
 }
 
@@ -47,7 +54,8 @@ func TestSavepoint(t *testing.T) {
 	testutil.AssertEquals(t, blockNum, uint64(0))
 
 	bg, gb := testutil.NewBlockGenerator(t, "testLedger", false)
-	testutil.AssertNoError(t, env.testHistoryDB.Commit(gb), "")
+	_,_,dd:=env.testHistoryDB.Commit(gb)
+	testutil.AssertNoError(t,dd, "")
 	// read the savepoint, it should now exist and return a Height object with BlockNum 0
 	savepoint, err = env.testHistoryDB.GetLastSavepoint()
 	testutil.AssertNoError(t, err, "Error upon historyDatabase.GetLastSavepoint()")
@@ -61,7 +69,8 @@ func TestSavepoint(t *testing.T) {
 	simRes, _ := simulator.GetTxSimulationResults()
 	pubSimResBytes, _ := simRes.GetPubSimulationBytes()
 	block1 := bg.NextBlock([][]byte{pubSimResBytes})
-	testutil.AssertNoError(t, env.testHistoryDB.Commit(block1), "")
+	_,_,errq:= env.testHistoryDB.Commit(block1)
+	testutil.AssertNoError(t, errq, "")
 	savepoint, err = env.testHistoryDB.GetLastSavepoint()
 	testutil.AssertNoError(t, err, "Error upon historyDatabase.GetLastSavepoint()")
 	testutil.AssertEquals(t, savepoint.BlockNum, uint64(1))
@@ -105,7 +114,8 @@ func TestHistory(t *testing.T) {
 
 	bg, gb := testutil.NewBlockGenerator(t, ledger1id, false)
 	testutil.AssertNoError(t, store1.AddBlock(gb), "")
-	testutil.AssertNoError(t, env.testHistoryDB.Commit(gb), "")
+	_,_,oo:=env.testHistoryDB.Commit(gb)
+	testutil.AssertNoError(t, oo, "")
 
 	//block1
 	txid := util2.GenerateUUID()
@@ -118,7 +128,7 @@ func TestHistory(t *testing.T) {
 	block1 := bg.NextBlock([][]byte{pubSimResBytes})
 	err = store1.AddBlock(block1)
 	testutil.AssertNoError(t, err, "")
-	err = env.testHistoryDB.Commit(block1)
+	_,_,err = env.testHistoryDB.Commit(block1)
 	testutil.AssertNoError(t, err, "")
 
 	//block2 tran1
@@ -143,7 +153,7 @@ func TestHistory(t *testing.T) {
 	block2 := bg.NextBlock(simulationResults)
 	err = store1.AddBlock(block2)
 	testutil.AssertNoError(t, err, "")
-	err = env.testHistoryDB.Commit(block2)
+	_,_,err = env.testHistoryDB.Commit(block2)
 	testutil.AssertNoError(t, err, "")
 
 	//block3
@@ -156,7 +166,7 @@ func TestHistory(t *testing.T) {
 	block3 := bg.NextBlock([][]byte{pubSimResBytes})
 	err = store1.AddBlock(block3)
 	testutil.AssertNoError(t, err, "")
-	err = env.testHistoryDB.Commit(block3)
+	_,_,err = env.testHistoryDB.Commit(block3)
 	testutil.AssertNoError(t, err, "")
 	t.Logf("Inserted all 3 blocks")
 
@@ -204,7 +214,8 @@ func TestHistoryForInvalidTran(t *testing.T) {
 
 	bg, gb := testutil.NewBlockGenerator(t, ledger1id, false)
 	testutil.AssertNoError(t, store1.AddBlock(gb), "")
-	testutil.AssertNoError(t, env.testHistoryDB.Commit(gb), "")
+	_,_,fff:=env.testHistoryDB.Commit(gb)
+	testutil.AssertNoError(t, fff, "")
 
 	//block1
 	txid := util2.GenerateUUID()
@@ -223,7 +234,7 @@ func TestHistoryForInvalidTran(t *testing.T) {
 
 	err = store1.AddBlock(block1)
 	testutil.AssertNoError(t, err, "")
-	err = env.testHistoryDB.Commit(block1)
+	_,_,err = env.testHistoryDB.Commit(block1)
 	testutil.AssertNoError(t, err, "")
 
 	qhistory, err := env.testHistoryDB.NewHistoryQueryExecutor(store1)
@@ -250,90 +261,12 @@ func TestHistoryDisabled(t *testing.T) {
 }
 
 //TestGenesisBlockNoError tests that Genesis blocks are ignored by history processing
-// since we only persist history of chaincode key writes
+//since we only persist history of chaincode key writes
 func TestGenesisBlockNoError(t *testing.T) {
 	env := newTestHistoryEnv(t)
 	defer env.cleanup()
 	block, err := configtxtest.MakeGenesisBlock("test_chainid")
 	testutil.AssertNoError(t, err, "")
-	err = env.testHistoryDB.Commit(block)
+	_,_,err = env.testHistoryDB.Commit(block)
 	testutil.AssertNoError(t, err, "")
-}
-
-// TestHistoryWithKeyContainingNilBytes tests historydb when keys contains nil bytes (FAB-11244) -
-// which happens to be used as a separator in the composite keys that is formed for the entries in the historydb
-func TestHistoryWithKeyContainingNilBytes(t *testing.T) {
-	env := newTestHistoryEnv(t)
-	defer env.cleanup()
-	provider := env.testBlockStorageEnv.provider
-	ledger1id := "ledger1"
-	store1, err := provider.OpenBlockStore(ledger1id)
-	testutil.AssertNoError(t, err, "Error upon provider.OpenBlockStore()")
-	defer store1.Shutdown()
-
-	bg, gb := testutil.NewBlockGenerator(t, ledger1id, false)
-	testutil.AssertNoError(t, store1.AddBlock(gb), "")
-	testutil.AssertNoError(t, env.testHistoryDB.Commit(gb), "")
-
-	//block1
-	txid := util2.GenerateUUID()
-	simulator, _ := env.txmgr.NewTxSimulator(txid)
-	simulator.SetState("ns1", "key", []byte("value1")) // add a key <key> that contains no nil byte
-	simulator.Done()
-	simRes, _ := simulator.GetTxSimulationResults()
-	pubSimResBytes, _ := simRes.GetPubSimulationBytes()
-	block1 := bg.NextBlock([][]byte{pubSimResBytes})
-	err = store1.AddBlock(block1)
-	testutil.AssertNoError(t, err, "")
-	err = env.testHistoryDB.Commit(block1)
-	testutil.AssertNoError(t, err, "")
-
-	//block2 tran1
-	simulationResults := [][]byte{}
-	txid = util2.GenerateUUID()
-	simulator, _ = env.txmgr.NewTxSimulator(txid)
-	simulator.SetState("ns1", "key", []byte("value2")) // add another value for the key <key>
-	simulator.Done()
-	simRes, _ = simulator.GetTxSimulationResults()
-	pubSimResBytes, _ = simRes.GetPubSimulationBytes()
-	simulationResults = append(simulationResults, pubSimResBytes)
-
-	//block2 tran2
-	txid2 := util2.GenerateUUID()
-	simulator2, _ := env.txmgr.NewTxSimulator(txid2)
-	// add another key <key\x00\x01\x01\x15> that contains a nil byte - such that when a range query is formed using old format, this key falls in the range
-	simulator2.SetState("ns1", "key\x00\x01\x01\x15", []byte("dummyVal1"))
-	simulator2.SetState("ns1", "\x00key\x00\x01\x01\x15", []byte("dummyVal2"))
-	simulator2.Done()
-	simRes2, _ := simulator2.GetTxSimulationResults()
-	pubSimResBytes2, _ := simRes2.GetPubSimulationBytes()
-	simulationResults = append(simulationResults, pubSimResBytes2)
-	block2 := bg.NextBlock(simulationResults)
-	err = store1.AddBlock(block2)
-	testutil.AssertNoError(t, err, "")
-	err = env.testHistoryDB.Commit(block2)
-	testutil.AssertNoError(t, err, "")
-
-	qhistory, err := env.testHistoryDB.NewHistoryQueryExecutor(store1)
-	testutil.AssertNoError(t, err, "Error upon NewHistoryQueryExecutor")
-	testutilVerifyResults(t, qhistory, "ns1", "key", []string{"value1", "value2"})
-	testutilVerifyResults(t, qhistory, "ns1", "key\x00\x01\x01\x15", []string{"dummyVal1"})
-	testutilVerifyResults(t, qhistory, "ns1", "\x00key\x00\x01\x01\x15", []string{"dummyVal2"})
-}
-
-func testutilVerifyResults(t *testing.T, hqe ledger.HistoryQueryExecutor, ns, key string, expectedVals []string) {
-	itr, err := hqe.GetHistoryForKey(ns, key)
-	testutil.AssertNoError(t, err, "Error upon GetHistoryForKey()")
-	retrievedVals := []string{}
-	for {
-		kmod, _ := itr.Next()
-		if kmod == nil {
-			break
-		}
-		txid := kmod.(*queryresult.KeyModification).TxId
-		retrievedValue := string(kmod.(*queryresult.KeyModification).Value)
-		retrievedVals = append(retrievedVals, retrievedValue)
-		t.Logf("Retrieved history record at TxId=%s with value %s", txid, retrievedValue)
-	}
-	testutil.AssertEquals(t, retrievedVals, expectedVals)
 }

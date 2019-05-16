@@ -18,6 +18,7 @@ package shim
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -217,6 +218,8 @@ func (t *shimTestCC) rangeq(stub ChaincodeStubInterface, args []string) pb.Respo
 
 	// Get the state from the ledger
 	resultsIterator, err := stub.GetStateByRange(A, B)
+	//fmt.Println()
+	fmt.Println(resultsIterator)
 	if err != nil {
 		return Error(err.Error())
 	}
@@ -298,7 +301,9 @@ func (t *shimTestCC) richq(stub ChaincodeStubInterface, args []string) pb.Respon
 }
 
 // rangeq calls range query
+
 func (t *shimTestCC) historyq(stub ChaincodeStubInterface, args []string) pb.Response {
+	fmt.Println("historyhistory")
 	if len(args) < 1 {
 		return Error("Incorrect number of arguments. Expecting 1")
 	}
@@ -306,46 +311,66 @@ func (t *shimTestCC) historyq(stub ChaincodeStubInterface, args []string) pb.Res
 	key := args[0]
 
 	resultsIterator, err := stub.GetHistoryForKey(key)
+	fmt.Println("zhebuyouwenti")
 	if err != nil {
+		fmt.Println("errrrropopopp")
 		return Error(err.Error())
 	}
-	defer resultsIterator.Close()
-
+	fmt.Println("zhebuyouwentima")
+	//for i:=0;i<len(resultsIterator);i++ {
+	//	defer resultsIterator[i].Close()
+	//}
+	//defer resultsIterator[0].Close()
 	var buffer bytes.Buffer
 	buffer.WriteString("[")
 
+	fmt.Println("**************************************************************",len(resultsIterator))
 	bArrayMemberAlreadyWritten := false
-	for resultsIterator.HasNext() {
-		response, err := resultsIterator.Next()
-		if err != nil {
-			return Error(err.Error())
-		}
-		// Add a comma before array members, suppress it for the first array member
-		if bArrayMemberAlreadyWritten == true {
-			buffer.WriteString(",")
-		}
-		buffer.WriteString("{\"TxId\":")
-		buffer.WriteString("\"")
-		buffer.WriteString(response.TxId)
-		buffer.WriteString("\"")
+	for i:=0;i<len(resultsIterator);i++ {
+		fmt.Println("zhebune")
+		fmt.Println(resultsIterator[i])
+		for resultsIterator[i].HasNext() {
+			fmt.Println("0000000000zhebune")
+			response, err := resultsIterator[i].Next()
+			fmt.Println(string(response.Value))
+			if err != nil {
+				fmt.Println("errrrrrrrrrrrrrrrrrrrr")
+				return Error(err.Error())
+			}
+			// Add a comma before array members, suppress it for the first array member
+			if bArrayMemberAlreadyWritten == true {
+				buffer.WriteString(",")
+			}
+			buffer.WriteString("{\"TxId\":")
+			buffer.WriteString("\"")
+			buffer.WriteString(response.TxId)
+			buffer.WriteString("\"")
 
-		buffer.WriteString(", \"Value\":")
-		if response.IsDelete {
-			buffer.WriteString("null")
-		} else {
-			buffer.WriteString(string(response.Value))
+			buffer.WriteString(", \"Value\":")
+			if response.IsDelete {
+				buffer.WriteString("null")
+			} else {
+				buffer.WriteString(string(response.Value))
+			}
+
+			buffer.WriteString(", \"IsDelete\":")
+			buffer.WriteString("\"")
+			buffer.WriteString(strconv.FormatBool(response.IsDelete))
+			buffer.WriteString("\"")
+
+			buffer.WriteString("}")
+			bArrayMemberAlreadyWritten = true
+			fmt.Println("l.lllllllllllll")
 		}
-
-		buffer.WriteString(", \"IsDelete\":")
-		buffer.WriteString("\"")
-		buffer.WriteString(strconv.FormatBool(response.IsDelete))
-		buffer.WriteString("\"")
-
-		buffer.WriteString("}")
-		bArrayMemberAlreadyWritten = true
+		buffer.WriteString("]")
+		//defer resultsIterator[i].Close()
+		//var t *testing.T
+		//done := setuperror()
+		//processDone1(done, false)
 	}
-	buffer.WriteString("]")
-
+	defer resultsIterator[0].Close()
+	fmt.Println("090909090909999999999999999999")
+	fmt.Println(string(buffer.Bytes()))
 	return Success(buffer.Bytes())
 }
 
@@ -548,7 +573,16 @@ func processDone(t *testing.T, done chan error, expecterr bool) {
 		}
 	}
 }
-
+func processDone1( done chan error, expecterr bool) {
+	err := <-done
+	if expecterr != (err != nil) {
+		if err == nil {
+			fmt.Println("Expected error but got success")
+		} else {
+			fmt.Println("Expected success but got error ", err)
+		}
+	}
+}
 //TestInvoke tests init and invoke along with many of the stub functions
 //such as get/put/del/range...
 func TestInvoke(t *testing.T) {
@@ -578,8 +612,8 @@ func TestInvoke(t *testing.T) {
 	}()
 
 	//wait for init
+	fmt.Println("wait for init1")
 	processDone(t, done, false)
-
 	channelId := "testchannel"
 
 	peerSide.Send(&pb.ChaincodeMessage{Type: pb.ChaincodeMessage_READY, Txid: "1", ChannelId: channelId})
@@ -594,7 +628,7 @@ func TestInvoke(t *testing.T) {
 
 	//use the payload computed from prev init
 	peerSide.Send(&pb.ChaincodeMessage{Type: pb.ChaincodeMessage_INIT, Payload: payload, Txid: "2", ChannelId: channelId})
-
+	fmt.Println("wait for init")
 	//wait for done
 	processDone(t, done, false)
 
@@ -610,7 +644,7 @@ func TestInvoke(t *testing.T) {
 	ci = &pb.ChaincodeInput{Args: [][]byte{[]byte("invoke"), []byte("A"), []byte("B"), []byte("10")}, Decorations: nil}
 	payload = utils.MarshalOrPanic(ci)
 	peerSide.Send(&pb.ChaincodeMessage{Type: pb.ChaincodeMessage_TRANSACTION, Payload: payload, Txid: "3", ChannelId: channelId})
-
+	fmt.Println("wait for init")
 	//wait for done
 	processDone(t, done, false)
 
@@ -625,10 +659,10 @@ func TestInvoke(t *testing.T) {
 	ci = &pb.ChaincodeInput{Args: [][]byte{[]byte("invoke"), []byte("A"), []byte("B"), []byte("10")}, Decorations: nil}
 	payload = utils.MarshalOrPanic(ci)
 	peerSide.Send(&pb.ChaincodeMessage{Type: pb.ChaincodeMessage_TRANSACTION, Payload: payload, Txid: "3a", ChannelId: channelId})
-
+	fmt.Println("wait for inittttt")
 	//wait for done
 	processDone(t, done, false)
-
+	fmt.Println("wait for inittttt")
 	//bad get
 	respSet = &mockpeer.MockResponseSet{errorFunc, errorFunc, []*mockpeer.MockResponse{
 		{&pb.ChaincodeMessage{Type: pb.ChaincodeMessage_GET_STATE, Txid: "3b", ChannelId: channelId}, &pb.ChaincodeMessage{Type: pb.ChaincodeMessage_ERROR, Txid: "3b", ChannelId: channelId}},
@@ -638,10 +672,10 @@ func TestInvoke(t *testing.T) {
 	ci = &pb.ChaincodeInput{Args: [][]byte{[]byte("invoke"), []byte("A"), []byte("B"), []byte("10")}, Decorations: nil}
 	payload = utils.MarshalOrPanic(ci)
 	peerSide.Send(&pb.ChaincodeMessage{Type: pb.ChaincodeMessage_TRANSACTION, Payload: payload, Txid: "3b", ChannelId: channelId})
-
+	fmt.Println("wait for initrrrrrrr")
 	//wait for done
 	processDone(t, done, false)
-
+	fmt.Println("wait for initrrrrrrr")
 	//bad delete
 	respSet = &mockpeer.MockResponseSet{errorFunc, errorFunc, []*mockpeer.MockResponse{
 		{&pb.ChaincodeMessage{Type: pb.ChaincodeMessage_DEL_STATE, Txid: "4", ChannelId: channelId}, &pb.ChaincodeMessage{Type: pb.ChaincodeMessage_ERROR, Txid: "4", ChannelId: channelId}},
@@ -651,9 +685,10 @@ func TestInvoke(t *testing.T) {
 	ci = &pb.ChaincodeInput{Args: [][]byte{[]byte("delete"), []byte("A")}, Decorations: nil}
 	payload = utils.MarshalOrPanic(ci)
 	peerSide.Send(&pb.ChaincodeMessage{Type: pb.ChaincodeMessage_TRANSACTION, Payload: payload, Txid: "4", ChannelId: channelId})
-
+	fmt.Println("wait for init****")
 	//wait for done
 	processDone(t, done, false)
+	fmt.Println("wait for init****")
 
 	//good delete
 	respSet = &mockpeer.MockResponseSet{errorFunc, errorFunc, []*mockpeer.MockResponse{
@@ -676,10 +711,11 @@ func TestInvoke(t *testing.T) {
 	ci = &pb.ChaincodeInput{Args: [][]byte{[]byte("badinvoke")}, Decorations: nil}
 	payload = utils.MarshalOrPanic(ci)
 	peerSide.Send(&pb.ChaincodeMessage{Type: pb.ChaincodeMessage_TRANSACTION, Payload: payload, Txid: "5", ChannelId: channelId})
-
+	fmt.Println("wait for init####")
 	//wait for done
 	processDone(t, done, false)
-
+	fmt.Println("wait for init#####")
+	fmt.Println("wait for init")
 	//range query
 
 	//create the response
@@ -702,7 +738,7 @@ func TestInvoke(t *testing.T) {
 	ci = &pb.ChaincodeInput{Args: [][]byte{[]byte("rangeq"), []byte("A"), []byte("B")}, Decorations: nil}
 	payload = utils.MarshalOrPanic(ci)
 	peerSide.Send(&pb.ChaincodeMessage{Type: pb.ChaincodeMessage_TRANSACTION, Payload: payload, Txid: "6", ChannelId: channelId})
-
+	fmt.Println("wait for init")
 	//wait for done
 	processDone(t, done, false)
 
@@ -718,6 +754,7 @@ func TestInvoke(t *testing.T) {
 	payload = utils.MarshalOrPanic(ci)
 	peerSide.Send(&pb.ChaincodeMessage{Type: pb.ChaincodeMessage_TRANSACTION, Payload: payload, Txid: "6a", ChannelId: channelId})
 
+	fmt.Println("wait for init")
 	//wait for done
 	processDone(t, done, false)
 
@@ -734,7 +771,7 @@ func TestInvoke(t *testing.T) {
 	ci = &pb.ChaincodeInput{Args: [][]byte{[]byte("rangeq"), []byte("A"), []byte("B")}, Decorations: nil}
 	payload = utils.MarshalOrPanic(ci)
 	peerSide.Send(&pb.ChaincodeMessage{Type: pb.ChaincodeMessage_TRANSACTION, Payload: payload, Txid: "6b", ChannelId: channelId})
-
+	fmt.Println("wait for init2")
 	//wait for done
 	processDone(t, done, false)
 
@@ -752,20 +789,44 @@ func TestInvoke(t *testing.T) {
 	payload = utils.MarshalOrPanic(ci)
 	peerSide.Send(&pb.ChaincodeMessage{Type: pb.ChaincodeMessage_TRANSACTION, Payload: payload, Txid: "6c", ChannelId: channelId})
 
+	fmt.Println("wait for init3")
 	//wait for done
 	processDone(t, done, false)
 
 	//history query
+	fmt.Println("wait for init4")
 
 	//create the response
 	historyQueryResponse := &pb.QueryResponse{Results: []*pb.QueryResultBytes{
 		{ResultBytes: utils.MarshalOrPanic(&lproto.KeyModification{TxId: "6", Value: []byte("100")})}},
 		HasMore: true}
-	payload = utils.MarshalOrPanic(historyQueryResponse)
+	historyQueryResponse1 := &pb.QueryResponse{Results: []*pb.QueryResultBytes{ {ResultBytes: utils.MarshalOrPanic(&lproto.KeyModification{TxId: "10", Value: []byte("1000")})}}, HasMore: true}
+	//var network bytes.Buffer
+	//enc := gob.NewEncoder(&network)
+	//dec := gob.NewDecoder(&network)
+	//enc.Encode(historyQueryResponse)
+	//payload= utils.MarshalOrPanic(historyQueryResponse)
+	payload1 := utils.MarshalOrPanic(historyQueryResponse)
+	payload2 := utils.MarshalOrPanic(historyQueryResponse1)
+	//var payload []byte
+	payload1=append(payload1,byte('#'))
 
+	for i:=0;i<len(payload2);i++{
+		payload1=append(payload1,payload2[i])
+	}
+	payload1=append(payload1,byte('#'))
+
+	for i:=0;i<len(payload2);i++{
+		payload1=append(payload1,payload2[i])
+	}
+	payload1=append(payload1,byte('#'))
+	//peer.DeliverResponse_Status{errorFunc,errorFunc,[]*peer.Response{}}
 	respSet = &mockpeer.MockResponseSet{errorFunc, errorFunc, []*mockpeer.MockResponse{
-		{&pb.ChaincodeMessage{Type: pb.ChaincodeMessage_GET_HISTORY_FOR_KEY, Txid: "7", ChannelId: channelId}, &pb.ChaincodeMessage{Type: pb.ChaincodeMessage_RESPONSE, Payload: payload, Txid: "7", ChannelId: channelId}},
+		{&pb.ChaincodeMessage{Type: pb.ChaincodeMessage_GET_HISTORY_FOR_KEY, Txid: "7", ChannelId: channelId}, &pb.ChaincodeMessage{Type: pb.ChaincodeMessage_RESPONSE, Payload: payload1, Txid: "7", ChannelId: channelId}},
 		{&pb.ChaincodeMessage{Type: pb.ChaincodeMessage_QUERY_STATE_NEXT, Txid: "7", ChannelId: channelId}, &pb.ChaincodeMessage{Type: pb.ChaincodeMessage_RESPONSE, Payload: utils.MarshalOrPanic(rangeQueryNext), Txid: "7", ChannelId: channelId}},
+		{&pb.ChaincodeMessage{Type: pb.ChaincodeMessage_QUERY_STATE_NEXT, Txid: "7", ChannelId: channelId}, &pb.ChaincodeMessage{Type: pb.ChaincodeMessage_RESPONSE, Payload: utils.MarshalOrPanic(rangeQueryNext), Txid: "7", ChannelId: channelId}},
+		{&pb.ChaincodeMessage{Type: pb.ChaincodeMessage_QUERY_STATE_NEXT, Txid: "7", ChannelId: channelId}, &pb.ChaincodeMessage{Type: pb.ChaincodeMessage_RESPONSE, Payload: utils.MarshalOrPanic(rangeQueryNext), Txid: "7", ChannelId: channelId}},
+
 		{&pb.ChaincodeMessage{Type: pb.ChaincodeMessage_QUERY_STATE_CLOSE, Txid: "7", ChannelId: channelId}, &pb.ChaincodeMessage{Type: pb.ChaincodeMessage_RESPONSE, Txid: "7", ChannelId: channelId}},
 		{&pb.ChaincodeMessage{Type: pb.ChaincodeMessage_COMPLETED, Txid: "7", ChannelId: channelId}, nil}}}
 	peerSide.SetResponses(respSet)
@@ -773,10 +834,11 @@ func TestInvoke(t *testing.T) {
 	ci = &pb.ChaincodeInput{Args: [][]byte{[]byte("historyq"), []byte("A")}, Decorations: nil}
 	payload = utils.MarshalOrPanic(ci)
 	peerSide.Send(&pb.ChaincodeMessage{Type: pb.ChaincodeMessage_TRANSACTION, Payload: payload, Txid: "7", ChannelId: channelId})
-
+	fmt.Println("wait for init4")
+	fmt.Println("aaaaarrrrrrrrrrrrrrrrrrr")
 	//wait for done
 	processDone(t, done, false)
-
+	fmt.Println("yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy")
 	//error history query
 
 	//create the response
@@ -787,8 +849,9 @@ func TestInvoke(t *testing.T) {
 
 	ci = &pb.ChaincodeInput{Args: [][]byte{[]byte("historyq"), []byte("A")}, Decorations: nil}
 	payload = utils.MarshalOrPanic(ci)
+	fmt.Println(payload)
 	peerSide.Send(&pb.ChaincodeMessage{Type: pb.ChaincodeMessage_TRANSACTION, Payload: payload, Txid: "7a", ChannelId: channelId})
-
+	fmt.Println("pppppppppppppppppppPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP")
 	//wait for done
 	processDone(t, done, false)
 

@@ -133,7 +133,9 @@ type HistoryQueryExecutor interface {
 	// The returned ResultsIterator contains results of type *KeyModification which is defined in protos/ledger/queryresult.
 	GetHistoryForKey(namespace string, key string) (commonledger.ResultsIterator, error)
 }
-
+type KeyQueryExecutor interface{
+	GetKeysForKey(namespace string, key string) ([]string, error)
+}
 // TxSimulator simulates a transaction on a consistent snapshot of the 'as recent state as possible'
 // Set* methods are for supporting KV-based data model. ExecuteUpdate method is for supporting a rich datamodel and query support
 type TxSimulator interface {

@@ -34,7 +34,7 @@ type HistoryDBProvider interface {
 // HistoryDB - an interface that a history database should implement
 type HistoryDB interface {
 	NewHistoryQueryExecutor(blockStore blkstorage.BlockStore) (ledger.HistoryQueryExecutor, error)
-	Commit(block *common.Block) error
+	Commit(block *common.Block) ([]string,*version.Height,error)
 	GetLastSavepoint() (*version.Height, error)
 	ShouldRecover(lastAvailableBlock uint64) (bool, uint64, error)
 	CommitLostBlock(blockAndPvtdata *ledger.BlockAndPvtData) error

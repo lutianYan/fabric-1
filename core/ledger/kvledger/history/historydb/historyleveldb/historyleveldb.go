@@ -7,6 +7,8 @@ SPDX-License-Identifier: Apache-2.0
 package historyleveldb
 
 import (
+	"fmt"
+	//"fmt"
 	"github.com/hyperledger/fabric/common/flogging"
 	"github.com/hyperledger/fabric/common/ledger/blkstorage"
 	"github.com/hyperledger/fabric/common/ledger/util/leveldbhelper"
@@ -24,6 +26,7 @@ var logger = flogging.MustGetLogger("historyleveldb")
 
 var savePointKey = []byte{0x00}
 var emptyValue = []byte{}
+var dbNameKeySep = []byte{0x00}
 
 // HistoryDBProvider implements interface HistoryDBProvider
 type HistoryDBProvider struct {
@@ -71,8 +74,9 @@ func (historyDB *historyDB) Close() {
 }
 
 // Commit implements method in HistoryDB interface
-func (historyDB *historyDB) Commit(block *common.Block) error {
-
+func (historyDB *historyDB) Commit(block *common.Block) ([]string,*version.Height,error) {
+	height:=&version.Height{}
+	var writeKeys []string
 	blockNo := block.Header.Number
 	//Set the starting tranNo to 0
 	var tranNo uint64
@@ -98,17 +102,17 @@ func (historyDB *historyDB) Commit(block *common.Block) error {
 
 		env, err := putils.GetEnvelopeFromBlock(envBytes)
 		if err != nil {
-			return err
+			return nil,height,err
 		}
 
 		payload, err := putils.GetPayload(env)
 		if err != nil {
-			return err
+			return nil,height,err
 		}
 
 		chdr, err := putils.UnmarshalChannelHeader(payload.Header.ChannelHeader)
 		if err != nil {
-			return err
+			return nil,height,err
 		}
 
 		if common.HeaderType(chdr.Type) == common.HeaderType_ENDORSER_TRANSACTION {
@@ -116,7 +120,7 @@ func (historyDB *historyDB) Commit(block *common.Block) error {
 			// extract actions from the envelope message
 			respPayload, err := putils.GetActionFromEnvelope(envBytes)
 			if err != nil {
-				return err
+				return nil,height,err
 			}
 
 			//preparation for extracting RWSet from transaction
@@ -125,7 +129,7 @@ func (historyDB *historyDB) Commit(block *common.Block) error {
 			// Get the Result from the Action and then Unmarshal
 			// it into a TxReadWriteSet using custom unmarshalling
 			if err = txRWSet.FromProtoBytes(respPayload.Results); err != nil {
-				return err
+				return nil,height,err
 			}
 			// for each transaction, loop through the namespaces and writesets
 			// and add a history record for each write
@@ -134,7 +138,7 @@ func (historyDB *historyDB) Commit(block *common.Block) error {
 
 				for _, kvWrite := range nsRWSet.KvRwSet.Writes {
 					writeKey := kvWrite.Key
-
+					writeKeys=append(writeKeys,writeKey)
 					//composite key for history records is in the form ns~key~blockNo~tranNo
 					compositeHistoryKey := historydb.ConstructCompositeHistoryKey(ns, writeKey, blockNo, tranNo)
 
@@ -150,17 +154,18 @@ func (historyDB *historyDB) Commit(block *common.Block) error {
 	}
 
 	// add savepoint for recovery purpose
-	height := version.NewHeight(blockNo, tranNo)
+	height = version.NewHeight(blockNo, tranNo)
 	dbBatch.Put(savePointKey, height.ToBytes())
 
 	// write the block's history records and savepoint to LevelDB
 	// Setting snyc to true as a precaution, false may be an ok optimization after further testing.
 	if err := historyDB.db.WriteBatch(dbBatch, true); err != nil {
-		return err
+		return  nil,height,err
 	}
 
+
 	logger.Debugf("Channel [%s]: Updates committed to history database for blockNo [%v]", historyDB.dbName, blockNo)
-	return nil
+	return writeKeys,height,nil
 }
 
 // NewHistoryQueryExecutor implements method in HistoryDB interface
@@ -194,10 +199,24 @@ func (historyDB *historyDB) ShouldRecover(lastAvailableBlock uint64) (bool, uint
 }
 
 // CommitLostBlock implements method in interface kvledger.Recoverer
-func (historyDB *historyDB) CommitLostBlock(blockAndPvtdata *ledger.BlockAndPvtData) error {
+func (historyDB *historyDB) CommitLostBlock(blockAndPvtdata *ledger.BlockAndPvtData) (error) {
+	fmt.Println("11PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPCommitLostBlock implements method in interface kvledger.Recoverer")
 	block := blockAndPvtdata.Block
-	if err := historyDB.Commit(block); err != nil {
+	writeKeys,height,err:= historyDB.Commit(block)
+	if err != nil {
 		return err
 	}
+	fmt.Println(writeKeys,height)
+/*
+	fmt.Println("PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPCommitLostBlock implements method in interface kvledger.Recoverer")
+	keydb:=keyleveldb.KeyDB{}
+	fmt.Println(keydb)
+	fmt.Println("TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTtmethod in interface kvledger.Recoverer")
+	err=keydb.CommitLostBlock(writeKeys,height)
+	if err != nil {
+		return err
+	}
+
+ */
 	return nil
 }

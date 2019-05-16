@@ -8,11 +8,6 @@ package chaincode
 
 import (
 	"fmt"
-	"io"
-	"strings"
-	"sync"
-	"time"
-
 	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric/common/flogging"
 	commonledger "github.com/hyperledger/fabric/common/ledger"
@@ -24,6 +19,10 @@ import (
 	pb "github.com/hyperledger/fabric/protos/peer"
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
+	"io"
+	"strings"
+	"sync"
+	"time"
 )
 
 var chaincodeLogger = flogging.MustGetLogger("chaincode")
@@ -221,7 +220,7 @@ type handleFunc func(*pb.ChaincodeMessage, *TransactionContext) (*pb.ChaincodeMe
 
 // HandleTransaction is a middleware function that obtains and verifies a transaction
 // context prior to forwarding the message to the provided delegate. Response messages
-// returned by the delegate are sent to the chat stream. Any errors returned by the
+// returened by the delegate are sent to the chat stream. Any errors returned by the
 // delegate are packaged as chaincode error messages.
 func (h *Handler) HandleTransaction(msg *pb.ChaincodeMessage, delegate handleFunc) {
 	chaincodeLogger.Debugf("[%s] handling %s from chaincode", shorttxid(msg.Txid), msg.Type.String())
@@ -290,13 +289,12 @@ func (h *Handler) serialSend(msg *pb.ChaincodeMessage) error {
 	h.serialLock.Lock()
 	defer h.serialLock.Unlock()
 
-	if err := h.chatStream.Send(msg); err != nil {
+	var err error
+	if err = h.chatStream.Send(msg); err != nil {
 		err = errors.WithMessage(err, fmt.Sprintf("[%s] error sending %s", shorttxid(msg.Txid), msg.Type))
 		chaincodeLogger.Errorf("%+v", err)
-		return err
 	}
-
-	return nil
+	return err
 }
 
 // serialSendAsync serves the same purpose as serialSend (serialize msgs so gRPC will
@@ -308,11 +306,6 @@ func (h *Handler) serialSendAsync(msg *pb.ChaincodeMessage, sendErr bool) {
 	go func() {
 		if err := h.serialSend(msg); err != nil {
 			if sendErr {
-				// provide an error response to the caller
-				resp := &pb.ChaincodeMessage{Type: pb.ChaincodeMessage_ERROR, Payload: []byte(err.Error()), Txid: msg.Txid, ChannelId: msg.ChannelId}
-				h.Notify(resp)
-
-				// provide an error response to the caller
 				h.errChan <- err
 			}
 		}
@@ -493,7 +486,7 @@ func (h *Handler) HandleRegister(msg *pb.ChaincodeMessage) {
 func (h *Handler) Notify(msg *pb.ChaincodeMessage) {
 	tctx := h.TXContexts.Get(msg.ChannelId, msg.Txid)
 	if tctx == nil {
-		chaincodeLogger.Debugf("notifier Txid:%s, channelID:%s does not exist for handling message %s", msg.Txid, msg.ChannelId, msg.Type)
+		chaincodeLogger.Debugf("notifier Txid:%s, channelID:%s does not exist for handleing message %s", msg.Txid, msg.ChannelId, msg.Type)
 		return
 	}
 
@@ -684,38 +677,76 @@ func (h *Handler) HandleGetQueryResult(msg *pb.ChaincodeMessage, txContext *Tran
 	chaincodeLogger.Debugf("Got keys and values. Sending %s", pb.ChaincodeMessage_RESPONSE)
 	return &pb.ChaincodeMessage{Type: pb.ChaincodeMessage_RESPONSE, Payload: payloadBytes, Txid: msg.Txid, ChannelId: msg.ChannelId}, nil
 }
-
+type Payloads struct{
+	newPayloads *[]pb.QueryResponse
+}
 // Handles query to ledger history db
 func (h *Handler) HandleGetHistoryForKey(msg *pb.ChaincodeMessage, txContext *TransactionContext) (*pb.ChaincodeMessage, error) {
+	fmt.Println("peerpeerpeer")
 	iterID := h.UUIDGenerator.New()
 	chaincodeName := h.ChaincodeName()
+	var historyIter []commonledger.ResultsIterator
+	var payload []*pb.QueryResponse
 
 	getHistoryForKey := &pb.GetHistoryForKey{}
 	err := proto.Unmarshal(msg.Payload, getHistoryForKey)
 	if err != nil {
 		return nil, errors.Wrap(err, "unmarshal failed")
 	}
-
-	historyIter, err := txContext.HistoryQueryExecutor.GetHistoryForKey(chaincodeName, getHistoryForKey.Key)
-	if err != nil {
-		return nil, errors.WithStack(err)
+	//获取keydb中的所有的value，也就是history中的key
+	keys,err:=txContext.KeyQueryExecutor.GetKeysForKey(chaincodeName,getHistoryForKey.Key)
+	if err!=nil{
+		return nil,errors.WithStack(err)
 	}
-
-	txContext.InitializeQueryContext(iterID, historyIter)
-	payload, err := h.QueryResponseBuilder.BuildQueryResponse(txContext, historyIter, iterID)
-	if err != nil {
-		txContext.CleanupQueryContext(iterID)
-		return nil, errors.WithStack(err)
+	//返回多个迭代器，怎么弄呢？？
+	//var payloads Payloads
+	for i:=0;i<len(keys);i++ {
+		historyIter[i], err = txContext.HistoryQueryExecutor.GetHistoryForKey(chaincodeName, keys[i])
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		txContext.InitializeQueryContext(iterID, historyIter[i])
+		payload[i], err = h.QueryResponseBuilder.BuildQueryResponse(txContext, historyIter[i], iterID)
+		if err != nil {
+			txContext.CleanupQueryContext(iterID)
+			return nil, errors.WithStack(err)
+		}
+		//payloads.newPayloads=append(payloads,payload[i])
+		//payloads.Id=payloads.Id+payload[i].Id
+		//payloads.HasMore=payloads.HasMore+payload[i].HasMore
+		//payloads.Results= append(payloads.Results, payload[i].Results)
 	}
-
-	payloadBytes, err := proto.Marshal(payload)
+	//
+	/*
+	fmt.Println("peerduan de")
+	fmt.Println(payload)
+	//不可以，有问题，只有一个结果了（应该是多个）
+	var network bytes.Buffer
+	enc := gob.NewEncoder(&network)
+	//dec := gob.NewDecoder(&network)
+	err = enc.Encode(payload)
+	//payloadBytes, err := proto.Marshal(payload[0])
 	if err != nil {
 		txContext.CleanupQueryContext(iterID)
 		return nil, errors.Wrap(err, "marshal failed")
 	}
-
+*/
+	var newpayload []byte
+	for i:=0;i<len(payload);i++{
+		mpayload,err:=proto.Marshal(payload[i])
+		if err!=nil{
+			txContext.CleanupQueryContext(iterID)
+			return nil, errors.Wrap(err, "marshal failed")
+		}
+		for j:=0;j<len(mpayload);j++{
+			newpayload=append(newpayload,mpayload[j])
+		}
+		newpayload=append(newpayload,byte('#'))
+	}
+	fmt.Println("QueryQueryQueryQuery")
+	//fmt.Println(network.Bytes())
 	chaincodeLogger.Debugf("Got keys and values. Sending %s", pb.ChaincodeMessage_RESPONSE)
-	return &pb.ChaincodeMessage{Type: pb.ChaincodeMessage_RESPONSE, Payload: payloadBytes, Txid: msg.Txid, ChannelId: msg.ChannelId}, nil
+	return &pb.ChaincodeMessage{Type: pb.ChaincodeMessage_RESPONSE, Payload: newpayload, Txid: msg.Txid, ChannelId: msg.ChannelId}, nil
 }
 
 func isCollectionSet(collection string) bool {

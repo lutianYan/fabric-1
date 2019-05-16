@@ -127,9 +127,10 @@ func (handler *Handler) sendChannel(msg *pb.ChaincodeMessage) error {
 
 //sends a message and selects
 func (handler *Handler) sendReceive(msg *pb.ChaincodeMessage, c chan pb.ChaincodeMessage) (pb.ChaincodeMessage, error) {
+	fmt.Println("sendandreceive")
 	errc := make(chan error, 1)
 	handler.serialSendAsync(msg, errc)
-
+	fmt.Println("1")
 	//the serialsend above will send an err or nil
 	//the select filters that first error(or nil)
 	//and continues to wait for the response
@@ -145,9 +146,11 @@ func (handler *Handler) sendReceive(msg *pb.ChaincodeMessage, c chan pb.Chaincod
 			//would have been logged, return false
 			return pb.ChaincodeMessage{}, err
 		case outmsg, val := <-c:
+			fmt.Println("----------------")
 			if !val {
 				return pb.ChaincodeMessage{}, errors.New("unexpected failure on receive")
 			}
+			fmt.Println("--++++++++")
 			return outmsg, nil
 		}
 	}
@@ -429,10 +432,12 @@ func (handler *Handler) handleGetStateByRange(collection, startKey, endKey strin
 }
 
 func (handler *Handler) handleQueryStateNext(id, channelId, txid string) (*pb.QueryResponse, error) {
+	fmt.Println("entry")
 	// Create the channel on which to communicate the response from validating peer
 	var respChan chan pb.ChaincodeMessage
 	var err error
 	if respChan, err = handler.createChannel(channelId, txid); err != nil {
+		fmt.Println("entryrrrrrrr")
 		chaincodeLogger.Errorf("[%s] Another state request pending for this Txid. Cannot process.", shorttxid(txid))
 		return nil, err
 	}
@@ -450,14 +455,19 @@ func (handler *Handler) handleQueryStateNext(id, channelId, txid string) (*pb.Qu
 
 	if responseMsg, err = handler.sendReceive(msg, respChan); err != nil {
 		chaincodeLogger.Errorf("[%s] error sending %s", shorttxid(msg.Txid), pb.ChaincodeMessage_QUERY_STATE_NEXT)
+		fmt.Println("uiiiuiiuiui")
 		return nil, errors.Errorf("[%s] error sending %s", shorttxid(msg.Txid), pb.ChaincodeMessage_QUERY_STATE_NEXT)
 	}
 
+	fmt.Println("1")
+	fmt.Println("daozhelima fff")
 	if responseMsg.Type.String() == pb.ChaincodeMessage_RESPONSE.String() {
+		fmt.Println("daozhelima ")
 		// Success response
 		chaincodeLogger.Debugf("[%s] Received %s. Successfully got range", shorttxid(responseMsg.Txid), pb.ChaincodeMessage_RESPONSE)
 
 		queryResponse := &pb.QueryResponse{}
+		fmt.Println("hello")
 		if err = proto.Unmarshal(responseMsg.Payload, queryResponse); err != nil {
 			chaincodeLogger.Errorf("[%s] unmarshall error", shorttxid(responseMsg.Txid))
 			return nil, errors.Errorf("[%s] unmarshal error", shorttxid(responseMsg.Txid))
@@ -465,12 +475,15 @@ func (handler *Handler) handleQueryStateNext(id, channelId, txid string) (*pb.Qu
 
 		return queryResponse, nil
 	}
+	fmt.Println("2")
 	if responseMsg.Type.String() == pb.ChaincodeMessage_ERROR.String() {
+		fmt.Println("world")
 		// Error response
 		chaincodeLogger.Errorf("[%s] Received %s", shorttxid(responseMsg.Txid), pb.ChaincodeMessage_ERROR)
 		return nil, errors.New(string(responseMsg.Payload[:]))
 	}
 
+	fmt.Println("!!!!")
 	// Incorrect chaincode message received
 	chaincodeLogger.Errorf("Incorrect chaincode message %s received. Expecting %s or %s", responseMsg.Type, pb.ChaincodeMessage_RESPONSE, pb.ChaincodeMessage_ERROR)
 	return nil, errors.Errorf("incorrect chaincode message %s received. Expecting %s or %s", responseMsg.Type, pb.ChaincodeMessage_RESPONSE, pb.ChaincodeMessage_ERROR)
@@ -560,7 +573,8 @@ func (handler *Handler) handleGetQueryResult(collection string, query string, ch
 	return nil, errors.Errorf("incorrect chaincode message %s received. Expecting %s or %s", responseMsg.Type, pb.ChaincodeMessage_RESPONSE, pb.ChaincodeMessage_ERROR)
 }
 
-func (handler *Handler) handleGetHistoryForKey(key string, channelId string, txid string) (*pb.QueryResponse, error) {
+func (handler *Handler) handleGetHistoryForKey(key string, channelId string, txid string) (*[]pb.QueryResponse, error) {
+	fmt.Println("%5555555555555555555555555555555555555555")
 	// Create the channel on which to communicate the response from validating peer
 	var respChan chan pb.ChaincodeMessage
 	var err error
@@ -581,21 +595,95 @@ func (handler *Handler) handleGetHistoryForKey(key string, channelId string, txi
 	var responseMsg pb.ChaincodeMessage
 
 	if responseMsg, err = handler.sendReceive(msg, respChan); err != nil {
+		fmt.Println("youcuowudezhili")
 		chaincodeLogger.Errorf("[%s] error sending %s", shorttxid(msg.Txid), pb.ChaincodeMessage_GET_HISTORY_FOR_KEY)
 		return nil, errors.Errorf("[%s] error sending %s", shorttxid(msg.Txid), pb.ChaincodeMessage_GET_HISTORY_FOR_KEY)
 	}
-
+	fmt.Println("llpppoppopopopoporrrr")
 	if responseMsg.Type.String() == pb.ChaincodeMessage_RESPONSE.String() {
+		/*
 		// Success response
 		chaincodeLogger.Debugf("[%s] Received %s. Successfully got range", shorttxid(responseMsg.Txid), pb.ChaincodeMessage_RESPONSE)
 
 		getHistoryForKeyResponse := &pb.QueryResponse{}
+		s:=0
+		K:=0
+		var splitPayload [][]byte
+		for i:=0;i<len(responseMsg.Payload);i++{
+			if responseMsg.Payload[i]==byte('#'){
+				splitPayload[K]=responseMsg.Payload[s:i]
+				K=K+1
+				s=i+1
+			}
+		}
+		fmt.Println("=================",splitPayload)
 		if err = proto.Unmarshal(responseMsg.Payload, getHistoryForKeyResponse); err != nil {
 			chaincodeLogger.Errorf("[%s] unmarshall error", shorttxid(responseMsg.Txid))
 			return nil, errors.Errorf("[%s] unmarshal error", shorttxid(responseMsg.Txid))
 		}
+		//改变
+		/*
+		var network1 bytes.Buffer
+		fmt.Println(network1)
+		fmt.Println(responseMsg.Payload)
+		for i:=0;i<len(responseMsg.Payload);i++{
+			network1.WriteByte(responseMsg.Payload[i])
+		}
+		dec := gob.NewDecoder(&network1)
+		err = dec.Decode(&getHistoryForKeyResponse1)
+		fmt.Println("unmarshall")
+		fmt.Println(network1)
+		fmt.Println(getHistoryForKeyResponse1)
+		if err!=nil{
+			chaincodeLogger.Errorf("[%s] unmarshall error", shorttxid(responseMsg.Txid))
+			return nil, errors.Errorf("[%s] unmarshal error", shorttxid(responseMsg.Txid))
+		}
+		*/
 
-		return getHistoryForKeyResponse, nil
+		//改变
+		/*
+		if err = proto.Unmarshal(responseMsg.Payload, getHistoryForKeyResponse); err != nil {
+			chaincodeLogger.Errorf("[%s] unmarshall error", shorttxid(responseMsg.Txid))
+			return nil, errors.Errorf("[%s] unmarshal error", shorttxid(responseMsg.Txid))
+		}
+		*/
+		// Success response
+		chaincodeLogger.Debugf("[%s] Received %s. Successfully got range", shorttxid(responseMsg.Txid), pb.ChaincodeMessage_RESPONSE)
+
+		getHistoryForKeyResponse := pb.QueryResponse{}
+		getHistoryForKeyResponses := []pb.QueryResponse{}
+		s:=0
+		//K:=0
+		var splitPayload [][]byte
+		flag:=0
+		fmt.Println(responseMsg.Payload)
+		fmt.Println(byte('#'))
+		for i:=0;i<len(responseMsg.Payload);i++{
+			if responseMsg.Payload[i]==byte('#'){
+				flag=1
+				splitPayload=append(splitPayload,responseMsg.Payload[s:i])
+				//splitPayload[K]=responseMsg.Payload[s:i]
+				//K=K+1
+				s=i+1
+			}
+		}
+		fmt.Println(flag)
+		if flag==0{
+			splitPayload=append(splitPayload,responseMsg.Payload)
+		}
+		fmt.Println("=================",splitPayload)
+
+		//这里写死了
+		for i:=0;i<len(splitPayload);i++ {
+			if err = proto.Unmarshal(splitPayload[i], &getHistoryForKeyResponse); err != nil {
+				chaincodeLogger.Errorf("[%s] unmarshall error", shorttxid(responseMsg.Txid))
+				return nil, errors.Errorf("[%s] unmarshal error", shorttxid(responseMsg.Txid))
+			}
+			getHistoryForKeyResponses=append(getHistoryForKeyResponses,getHistoryForKeyResponse)
+		}
+		fmt.Println(getHistoryForKeyResponse.Results)
+		fmt.Println(getHistoryForKeyResponses)
+		return &getHistoryForKeyResponses, nil
 	}
 	if responseMsg.Type.String() == pb.ChaincodeMessage_ERROR.String() {
 		// Error response

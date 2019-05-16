@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/keydb/keyleveldb"
 
 	"github.com/hyperledger/fabric/core/ledger/confighistory"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/hyperledger/fabric/core/ledger/kvledger/bookkeeping"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/history/historydb"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/history/historydb/historyleveldb"
+	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/keydb"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/privacyenabledstate"
 	"github.com/hyperledger/fabric/core/ledger/ledgerconfig"
 	"github.com/hyperledger/fabric/core/ledger/ledgerstorage"
@@ -48,6 +50,7 @@ type Provider struct {
 	configHistoryMgr    confighistory.Mgr
 	stateListeners      []ledger.StateListener
 	bookkeepingProvider bookkeeping.Provider
+	keydbProvider         keydb.KeyDBProvider
 }
 
 // NewProvider instantiates a new Provider.
@@ -59,6 +62,7 @@ func NewProvider() (ledger.PeerLedgerProvider, error) {
 	// Initialize the ID store (inventory of chainIds/ledgerIds)
 	idStore := openIDStore(ledgerconfig.GetLedgerProviderPath())
 
+	//区块数据存储对象
 	ledgerStoreProvider := ledgerstorage.NewProvider()
 
 	// Initialize the versioned database (state database)
@@ -67,13 +71,17 @@ func NewProvider() (ledger.PeerLedgerProvider, error) {
 		return nil, err
 	}
 
+
 	// Initialize the history database (index for history of values by key)
 	historydbProvider := historyleveldb.NewHistoryDBProvider()
 	bookkeepingProvider := bookkeeping.NewProvider()
 	// Initialize config history mgr
 	configHistoryMgr := confighistory.NewMgr()
+	//初始化Key database
+	keydbProvider := keyleveldb.NewKeyDBProvider()
+
 	logger.Info("ledger provider Initialized")
-	provider := &Provider{idStore, ledgerStoreProvider, vdbProvider, historydbProvider, configHistoryMgr, nil, bookkeepingProvider}
+	provider := &Provider{idStore, ledgerStoreProvider, vdbProvider, historydbProvider, configHistoryMgr, nil, bookkeepingProvider, keydbProvider}
 	provider.recoverUnderConstructionLedger()
 	return provider, nil
 }
@@ -136,6 +144,7 @@ func (provider *Provider) Open(ledgerID string) (ledger.PeerLedger, error) {
 
 func (provider *Provider) openInternal(ledgerID string) (ledger.PeerLedger, error) {
 	// Get the block store for a chain/ledger
+	//创建指定通道上的账本数据存储对象
 	blockStore, err := provider.ledgerStoreProvider.Open(ledgerID)
 	if err != nil {
 		return nil, err
@@ -153,9 +162,14 @@ func (provider *Provider) openInternal(ledgerID string) (ledger.PeerLedger, erro
 		return nil, err
 	}
 
+	//KeyDB
+	keyDB,err:=provider.keydbProvider.GetDBHandle(ledgerID)
+	if err!=nil{
+		return nil,err
+	}
 	// Create a kvLedger for this chain/ledger, which encasulates the underlying data stores
 	// (id store, blockstore, state database, history database)
-	l, err := newKVLedger(ledgerID, blockStore, vDB, historyDB, provider.configHistoryMgr, provider.stateListeners, provider.bookkeepingProvider)
+	l, err := newKVLedger(ledgerID, blockStore, vDB, historyDB, provider.configHistoryMgr, provider.stateListeners, provider.bookkeepingProvider,keyDB)
 	if err != nil {
 		return nil, err
 	}
@@ -178,6 +192,7 @@ func (provider *Provider) Close() {
 	provider.ledgerStoreProvider.Close()
 	provider.vdbProvider.Close()
 	provider.historydbProvider.Close()
+	provider.keydbProvider.Close()
 	provider.bookkeepingProvider.Close()
 	provider.configHistoryMgr.Close()
 }

@@ -26,6 +26,7 @@ const confPeerFileSystemPath = "peer.fileSystemPath"
 const confLedgersData = "ledgersData"
 const confLedgerProvider = "ledgerProvider"
 const confStateleveldb = "stateLeveldb"
+const confKeyleveldb = "keyLeveldb"
 const confHistoryLeveldb = "historyLeveldb"
 const confBookkeeper = "bookkeeper"
 const confConfigHistory = "configHistory"
@@ -52,6 +53,11 @@ func GetLedgerProviderPath() string {
 // GetStateLevelDBPath returns the filesystem path that is used to maintain the state level db
 func GetStateLevelDBPath() string {
 	return filepath.Join(GetRootPath(), confStateleveldb)
+}
+
+// GetKeyLevelDBPath returns the filesystem path that is used to maintain the state level db
+func GetKeyLevelDBPath() string {
+	return filepath.Join(GetRootPath(), confKeyleveldb)
 }
 
 // GetHistoryLevelDBPath returns the filesystem path that is used to maintain the history level db
