@@ -65,6 +65,7 @@ func (c *TransactionContexts) Create(ctx context.Context, chainID, txID string, 
 		ResponseNotifier:     make(chan *pb.ChaincodeMessage, 1),
 		TXSimulator:          getTxSimulator(ctx),
 		HistoryQueryExecutor: getHistoryQueryExecutor(ctx),
+		KeyQueryExecutor: getKeyQueryExecutor(ctx),
 		queryIteratorMap:     map[string]commonledger.ResultsIterator{},
 		pendingQueryResults:  map[string]*PendingQueryResult{},
 	}
@@ -86,7 +87,12 @@ func getHistoryQueryExecutor(ctx context.Context) ledger.HistoryQueryExecutor {
 	}
 	return nil
 }
-
+func getKeyQueryExecutor(ctx context.Context) ledger.KeyQueryExecutor {
+	if keyQueryExecutor, ok := ctx.Value(HistoryQueryExecutorKey).(ledger.KeyQueryExecutor); ok {
+		return keyQueryExecutor
+	}
+	return nil
+}
 // Get retrieves the transaction context associated with the chain and
 // transaction ID.
 func (c *TransactionContexts) Get(chainID, txID string) *TransactionContext {
